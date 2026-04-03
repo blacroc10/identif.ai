@@ -1,0 +1,101 @@
+/* =========================================================
+   IDENTIF.AI — Global Design System
+   Dark Techno / FBI Forensic Aesthetic
+   ========================================================= */
+
+:root {
+  /* Palette */
+  --bg-void:       #030508;
+  --bg-deep:       #060b10;
+  --bg-panel:      #0a1118;
+  --bg-raised:     #0f1a24;
+  --bg-hover:      #142030;
+
+  --border-dim:    rgba(0, 200, 255, 0.08);
+  --border-subtle: rgba(0, 200, 255, 0.15);
+  --border-active: rgba(0, 200, 255, 0.40);
+
+  --cyan:          #00c8ff;
+  --cyan-bright:   #4ddeff;
+  --cyan-dim:      rgba(0, 200, 255, 0.35);
+  --cyan-glow:     rgba(0, 200, 255, 0.12);
+
+  --amber:         #f5a623;
+  --amber-dim:     rgba(245, 166, 35, 0.3);
+  --green:         #00ff88;
+  --green-dim:     rgba(0, 255, 136, 0.25);
+  --red:           #ff3b5c;
+  --red-dim:       rgba(255, 59, 92, 0.25);
+
+  --text-primary:  #e8f4f8;
+  --text-secondary:#7fa8bc;
+  --text-muted:    #3d6070;
+  --text-label:    #00c8ff;
+
+  /* Typography */
+  --font-mono:     'Share Tech Mono', 'Courier New', monospace;
+  --font-body:     'Barlow', sans-serif;
+  --font-display:  'Barlow Condensed', sans-serif;
+
+  /* Spacing */
+  --radius-sm:     3px;
+  --radius-md:     6px;
+  --radius-lg:     10px;
+
+  /* Transitions */
+  --transition:    0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 14px; scroll-behavior: smooth; }
+
+body {
+  background: var(--bg-void);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-weight: 400;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg-deep); }
+::-webkit-scrollbar-thumb { background: var(--border-active); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--cyan); }
+
+/* Selection */
+::selection { background: var(--cyan-dim); color: var(--text-primary); }
+
+/* Focus */
+:focus-visible { outline: 1px solid var(--cyan); outline-offset: 2px; }
+
+/* Links */
+a { color: var(--cyan); text-decoration: none; }
+
+/* Utility classes */
+.mono { font-family: var(--font-mono); }
+.display { font-family: var(--font-display); }
+
+/* Scan-line overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.04) 2px,
+    rgba(0, 0, 0, 0.04) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* React root */
+#root { display: flex; min-height: 100vh; }

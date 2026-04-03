@@ -1,0 +1,34 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Python environments
+ml_env/
+.venv/
+venv/
+
+# Secrets
+.env
+frontend/server/.env
+
+# Large model weights/checkpoints
+*.safetensors
+*.ckpt
+*.bin
+*.pth
+forensic_faces_model/
+
+# Generated or temporary assets
+generated_faces/
+output.png
+temp_*
+
+# Notebook and tool artifacts
+.ipynb_checkpoints/
+.cog/
+__MACOSX/
+
+# Node modules
+frontend/server/node_modules/
+frontend/client/node_modules/

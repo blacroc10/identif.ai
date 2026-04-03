@@ -1,11 +1,33 @@
-# ── 3B · Attribute → prompt maps ─────────────────────────────────
+_NLP = None
+_WHISPER_MODEL = None
+
+
+def _get_nlp():
+    global _NLP
+    if _NLP is None:
+        import spacy
+
+        _NLP = spacy.load("en_core_web_sm")
+    return _NLP
+
+
+def _get_whisper_model():
+    global _WHISPER_MODEL
+    if _WHISPER_MODEL is None:
+        import whisper
+
+        _WHISPER_MODEL = whisper.load_model("base")
+    return _WHISPER_MODEL
+
+
+# -- 3B . Attribute -> prompt maps ---------------------------------
 # Each key exactly matches your CSV column name.
-# Each value maps a CSV label → the SD prompt phrase that produces
+# Each value maps a CSV label -> the SD prompt phrase that produces
 # the best photorealistic result for that attribute.
 
 ATTR_TO_PROMPT = {
 
-    # ── Core identity ────────────────────────────────────────────
+    # -- Core identity --------------------------------------------
     "gender": {
         "a male face"  : "man",
         "a female face": "woman",
@@ -31,7 +53,7 @@ ATTR_TO_PROMPT = {
         "a surprised face" : "surprised expression, raised eyebrows",
     },
 
-    # ── Face geometry ────────────────────────────────────────────
+    # -- Face geometry --------------------------------------------
     "face_shape": {
         "a face with a rectangular shape": "rectangular face shape",
         "a face with a diamond shape"    : "diamond shaped face",
@@ -70,7 +92,7 @@ ATTR_TO_PROMPT = {
         "a face with a narrow forehead": "narrow forehead",
     },
 
-    # ── Eyes ─────────────────────────────────────────────────────
+    # -- Eyes -----------------------------------------------------
     "eye_size": {
         "a face with small eyes"       : "small eyes",
         "a face with medium sized eyes": "medium eyes",
@@ -99,7 +121,7 @@ ATTR_TO_PROMPT = {
         "grey eyes" : "grey eyes",
     },
 
-    # ── Nose ─────────────────────────────────────────────────────
+    # -- Nose -----------------------------------------------------
     "nose_length": {
         "a face with a short nose"        : "short nose",
         "a face with a medium length nose": "medium length nose",
@@ -120,7 +142,7 @@ ATTR_TO_PROMPT = {
         "a face with a bulbous nose tip": "bulbous nose tip",
     },
 
-    # ── Mouth ────────────────────────────────────────────────────
+    # -- Mouth ----------------------------------------------------
     "mouth_width": {
         "a face with a narrow mouth": "narrow mouth",
         "a face with a wide mouth"  : "wide mouth",
@@ -140,7 +162,7 @@ ATTR_TO_PROMPT = {
         "a face with dark lips" : "dark lips",
     },
 
-    # ── Ears ─────────────────────────────────────────────────────
+    # -- Ears -----------------------------------------------------
     "ear_size": {
         "a face with small ears": "small ears",
         "a face with large ears": "large ears",
@@ -150,7 +172,7 @@ ATTR_TO_PROMPT = {
         "a face with flat ears"      : "flat ears",
     },
 
-    # ── Hair ─────────────────────────────────────────────────────
+    # -- Hair -----------------------------------------------------
     "hair_color": {
         "a person with black hair" : "black hair",
         "a person with brown hair" : "brown hair",
@@ -179,7 +201,7 @@ ATTR_TO_PROMPT = {
         "a person with a widow's peak hairline": "widows peak hairline",
     },
 
-    # ── Facial hair ──────────────────────────────────────────────
+    # -- Facial hair ----------------------------------------------
     "facial_hair": {
         "a clean shaven face"   : "clean shaven",
         "a face with stubble"   : "light stubble",
@@ -199,7 +221,7 @@ ATTR_TO_PROMPT = {
         "none"                       : "",
     },
 
-    # ── Skin ─────────────────────────────────────────────────────
+    # -- Skin -----------------------------------------------------
     "skin_texture": {
         "a face with smooth skin"      : "smooth clear skin",
         "a face with rough skin"       : "rough textured skin",
@@ -211,7 +233,7 @@ ATTR_TO_PROMPT = {
         "none"   : "",
     },
 
-    # ── Distinguishing features ───────────────────────────────────
+    # -- Distinguishing features -----------------------------------
     "freckles": {
         "a face with freckles"   : "freckles on face",
         "a face without freckles": "",
@@ -233,9 +255,9 @@ ATTR_TO_PROMPT = {
     "piercings"     : {"yes": "facial piercings", "no": ""},
 }
 
-# ── Negative prompt — always appended ────────────────────────────
+# -- Negative prompt -- always appended ----------------------------
 NEGATIVE = (
-    # Style blockers — most important
+    # Style blockers -- most important
     "cartoon, anime, manga, illustration, painting, drawing, sketch, "
     "3d render, cgi, doll, plastic skin, wax figure, video game, "
     # Quality blockers
@@ -253,12 +275,12 @@ NEGATIVE = (
     # General quality
     "ugly, disgusting, worst quality, normal quality"
 )
+def get_negative(_):
+    return NEGATIVE
 
-print("✅ Attribute maps loaded.")
-print(f"   Covers {len(ATTR_TO_PROMPT)} attribute columns from your dataset.")
 
-# ── 3C · Prompt builder function ─────────────────────────────────
-# Takes ONE row (dict or pd.Series) → full SD prompt string
+# -- 3C . Prompt builder function ---------------------------------
+# Takes ONE row (dict or pd.Series) -> full SD prompt string
 # Works with: dataset rows AND ASR extract_attributes() output
 
 def build_prompt(row):
@@ -267,50 +289,50 @@ def build_prompt(row):
 
     parts = []
 
-    # ── Core identity (always first for SD attention) ──────────
+    # -- Core identity (always first for SD attention) ----------
     gender = ATTR_TO_PROMPT["gender"].get(str(row.get("gender", "")), "person")
     age    = ATTR_TO_PROMPT["approx_age"].get(str(row.get("approx_age", "")), "adult")
     parts.append(f"RAW photo, portrait of a {age} {gender}")
 
-    # ── Ethnicity ───────────────────────────────────────────────
+    # -- Ethnicity -----------------------------------------------
     eth = ATTR_TO_PROMPT["ethnicity_complexion"].get(
         str(row.get("ethnicity_complexion", "")), ""
     )
     if eth: parts.append(eth)
 
-    # ── Expression ──────────────────────────────────────────────
+    # -- Expression ----------------------------------------------
     expr = ATTR_TO_PROMPT["facial_expression"].get(
         str(row.get("facial_expression", "")), "neutral expression"
     )
     parts.append(expr)
 
-    # ── Face geometry ───────────────────────────────────────────
+    # -- Face geometry -------------------------------------------
     for col in ["face_shape","jaw_strength","jaw_width","chin_shape",
                 "cheekbones","forehead_height","forehead_width"]:
         val = ATTR_TO_PROMPT.get(col, {}).get(str(row.get(col, "")), "")
         if val: parts.append(val)
 
-    # ── Eyes ────────────────────────────────────────────────────
+    # -- Eyes ----------------------------------------------------
     for col in ["eye_size","eye_shape","eye_spacing","eye_tilt","eye_color"]:
         val = ATTR_TO_PROMPT.get(col, {}).get(str(row.get(col, "")), "")
         if val: parts.append(val)
 
-    # ── Nose ────────────────────────────────────────────────────
+    # -- Nose ----------------------------------------------------
     for col in ["nose_length","nose_width","nose_bridge","nose_tip"]:
         val = ATTR_TO_PROMPT.get(col, {}).get(str(row.get(col, "")), "")
         if val: parts.append(val)
 
-    # ── Mouth ───────────────────────────────────────────────────
+    # -- Mouth ---------------------------------------------------
     for col in ["mouth_width","mouth_corners","lip_ratio","lip_color"]:
         val = ATTR_TO_PROMPT.get(col, {}).get(str(row.get(col, "")), "")
         if val: parts.append(val)
 
-    # ── Ears ────────────────────────────────────────────────────
+    # -- Ears ----------------------------------------------------
     for col in ["ear_size","ear_position"]:
         val = ATTR_TO_PROMPT.get(col, {}).get(str(row.get(col, "")), "")
         if val: parts.append(val)
 
-    # ── Hair ────────────────────────────────────────────────────
+    # -- Hair ----------------------------------------------------
     h_color   = ATTR_TO_PROMPT["hair_color"].get(str(row.get("hair_color","")), "")
     h_length  = ATTR_TO_PROMPT["hair_length"].get(str(row.get("hair_length","")), "")
     h_texture = ATTR_TO_PROMPT["hair_texture"].get(str(row.get("hair_texture","")), "")
@@ -321,25 +343,25 @@ def build_prompt(row):
     hairline = ATTR_TO_PROMPT["hairline"].get(str(row.get("hairline","")), "")
     if hairline: parts.append(hairline)
 
-    # ── Facial hair (only if not blocked by rule) ────────────────
+    # -- Facial hair (only if not blocked by rule) ----------------
     if row.get("allow_beard", True):
         for col in ["facial_hair","beard_style","beard_density"]:
             val = ATTR_TO_PROMPT.get(col, {}).get(str(row.get(col, "")), "")
             if val: parts.append(val)
 
-    # ── Skin ────────────────────────────────────────────────────
+    # -- Skin ----------------------------------------------------
     for col in ["skin_texture","wrinkles"]:
         val = ATTR_TO_PROMPT.get(col, {}).get(str(row.get(col, "")), "")
         if val: parts.append(val)
 
-    # ── Distinguishing / forensic features ──────────────────────
+    # -- Distinguishing / forensic features ----------------------
     for col in ["freckles","moles","birthmarks","scars","tattoos",
                 "facial_injury","lazy_eye","crooked_nose",
                 "missing_tooth","piercings"]:
         val = ATTR_TO_PROMPT.get(col, {}).get(str(row.get(col, "")), "")
         if val: parts.append(val)
 
-    # ── Quality boosters — always last ──────────────────────────
+    # -- Quality boosters -- always last --------------------------
     parts.append(
         "photorealistic, hyperdetailed face, DSLR photo, "
         "85mm portrait lens, professional studio lighting, "
@@ -351,17 +373,21 @@ def build_prompt(row):
     return ", ".join(p for p in parts if p.strip())
 
 
-# ── Quick test on first dataset row ──────────────────────────────
-sample_row    = original_df.iloc[0]
-sample_prompt = build_prompt(sample_row)
-print("Sample prompt:")
-print(sample_prompt)
-print(f"\nLength: {len(sample_prompt)} chars  |  Parts: {sample_prompt.count(',')}")
+# -- Quick test on first dataset row ------------------------------
+def debug_sample_prompt(original_df):
+    sample_row = original_df.iloc[0]
+    sample_prompt = build_prompt(sample_row)
+    print("Sample prompt:")
+    print(sample_prompt)
+    print(f"\nLength: {len(sample_prompt)} chars  |  Parts: {sample_prompt.count(',')}")
 
-# ── 4C · Your attribute_keywords dict (unchanged from ASR) ───────
+# -- 4C . Your attribute_keywords dict (unchanged from ASR) -------
 
 attribute_keywords = {
-    "gender": ["a male face", "a female face"],
+    "gender": [
+    "a male face", "male", "man",
+    "a female face", "female", "woman"
+    ],
     "approx_age": [
         "a child face", "a teenage face", "a young adult face",
         "a middle aged face", "an elderly face"
@@ -491,11 +517,12 @@ attribute_keywords = {
     "missing_tooth" : ["yes", "no"],
     "piercings"     : ["yes", "no"],
 }
-print(f"✅ attribute_keywords loaded — {len(attribute_keywords)} attributes")
 
-# ── 4D · Your extract_attributes function (unchanged from ASR) ───
+# -- 4D . Your extract_attributes function (unchanged from ASR) ---
 
 def _normalize_text_for_matching(value):
+    import re
+
     value = (value or "").lower()
     value = value.replace("'", "")
     value = re.sub(r"[^a-z0-9\s]", " ", value)
@@ -518,7 +545,7 @@ def extract_attributes(text):
                 break
 
     # spaCy token fallback
-    doc = nlp(cleaned)
+    doc = _get_nlp()(cleaned)
     token_set = {_normalize_text_for_matching(t.text)  for t in doc if not t.is_space}
     token_set |= {_normalize_text_for_matching(t.lemma_) for t in doc if not t.is_space}
 
@@ -536,10 +563,13 @@ def extract_attributes(text):
 
     return attributes
 
-print("✅ extract_attributes() ready")
-# ── 4B · Your audio processing functions (unchanged from ASR) ────
+# -- 4B . Your audio processing functions (unchanged from ASR) ----
 
 def preprocess_audio(input_file):
+    import librosa
+    import numpy as np
+    import soundfile as sf
+
     audio, sr = librosa.load(input_file, sr=16000)
     peak = np.max(np.abs(audio))
     if peak > 0:
@@ -549,9 +579,11 @@ def preprocess_audio(input_file):
     return output_file
 
 def speech_to_text(audio_path):
+    import librosa
+
     print("Transcribing audio...")
     audio, _ = librosa.load(audio_path, sr=16000, mono=True)
-    result = whisper_model.transcribe(audio, language="en")
+    result = _get_whisper_model().transcribe(audio, language="en")
     return result["text"].strip()
 
 def clean_text(text):

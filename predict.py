@@ -1,28 +1,40 @@
-import torch
-import numpy as np
-from diffusers import StableDiffusionPipeline, DPMSolverMultistepScheduler, AutoencoderKL
-from gfpgan import GFPGANer
 from cog import BasePredictor, Input, Path
-from PIL import Image
-from pipeline import build_prompt, extract_attributes, get_negative, clean_text
+from pipeline import get_negative
 
 class Predictor(BasePredictor):
 
     def setup(self):
+        import os
+        import torch
+        from diffusers import StableDiffusionPipeline, DPMSolverMultistepScheduler, AutoencoderKL
+        from gfpgan.utils import GFPGANer
+
+        self.torch = torch
+
         # Loads once when container starts
         print("Loading VAE...")
         vae = AutoencoderKL.from_pretrained(
             "stabilityai/sd-vae-ft-mse",
-            torch_dtype=torch.float16
+            torch_dtype=self.torch.float16
         )
 
         print("Loading Realistic Vision V5.1...")
-        self.pipe = StableDiffusionPipeline.from_single_file(
-            "./weights/Realistic_Vision_V5.1_fp16-no-ema.safetensors",
-            torch_dtype=torch.float16,      # float16 for A4000 GPU
-            safety_checker=None,
-            vae=vae,
-        )
+        local_model = "./Realistic_Vision_V5.1_fp16-no-ema.safetensors"
+        if os.path.isfile(local_model):
+            self.pipe = StableDiffusionPipeline.from_single_file(
+                local_model,
+                torch_dtype=self.torch.float16,
+                safety_checker=None,
+                vae=vae,
+            )
+        else:
+            # Fallback for Cog builds where large local checkpoints are not in Docker context.
+            self.pipe = StableDiffusionPipeline.from_pretrained(
+                "SG161222/Realistic_Vision_V5.1_noVAE",
+                torch_dtype=self.torch.float16,
+                safety_checker=None,
+                vae=vae,
+            )
         self.pipe.scheduler = DPMSolverMultistepScheduler.from_config(
             self.pipe.scheduler.config,
             use_karras_sigmas=True,
@@ -30,6 +42,7 @@ class Predictor(BasePredictor):
         )
         self.pipe.to("cuda")                # GPU — not CPU
         self.pipe.enable_xformers_memory_efficient_attention()
+        self.pipe.enable_attention_slicing()
 
         print("Loading GFPGAN restorer...")
         self.restorer = GFPGANer(
@@ -65,15 +78,18 @@ class Predictor(BasePredictor):
     ) -> Path:
 
         # Seed
-        seed_val  = seed if seed != -1 else torch.randint(0, 99999, (1,)).item()
-        generator = torch.Generator("cuda").manual_seed(seed_val)
+        from PIL import Image
+        import numpy as np
+
+        seed_val  = seed if seed != -1 else self.torch.randint(0, 99999, (1,)).item()
+        generator = self.torch.Generator("cuda").manual_seed(seed_val)
 
         # If negative prompt not supplied use smart gender-aware one
         if not negative_prompt.strip():
             negative_prompt = get_negative({})
 
         # Generate
-        with torch.autocast("cuda"):
+        with self.torch.autocast("cuda", dtype=self.torch.float16):
             image = self.pipe(
                 prompt             = prompt,
                 negative_prompt    = negative_prompt,
