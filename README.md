@@ -1,9 +1,7 @@
 # IDENTIF.AI — Forensic 3D Face Construction Frontend
 
 > AI-powered forensic tool — eyewitness verbal narration → 2D composite → 3D face model
->
-> Group 55 · Computer Engineering · AY 2025–26 · Symbiosis Institute of Technology, Pune
-> Industry Partner: Accenture
+
 
 ---
 
@@ -226,8 +224,4 @@ All design tokens are in `client/src/index.css`:
 | Shubhankar Sarangi  | Speech Processing             |
 | Raghav Dhoot        | Face Detection & Embeddings   |
 
-Mentors: Dr. Jitendra Rajpurohit (Faculty) · Mr. Radheshyam Gupta (Industry, Accenture)
 
----
-
-*IDENTIF.AI · Forensic 3D Face Construction · Group 55 · SIT Pune · AY 2025–26*
