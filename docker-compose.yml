@@ -1,0 +1,44 @@
+version: "3.9"
+
+services:
+  ml-backend:
+    build:
+      context: .
+      dockerfile: docker/ml-backend.Dockerfile
+    container_name: identifai-ml
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./frontend/server
+      dockerfile: Dockerfile
+    container_name: identifai-api
+    ports:
+      - "5001:5001"
+    environment:
+      PORT: 5001
+      NODE_ENV: development
+      ML_BACKEND_URL: http://ml-backend:8000
+    depends_on:
+      - ml-backend
+    restart: unless-stopped
+
+  client:
+    build:
+      context: ./frontend/client
+      dockerfile: Dockerfile
+    container_name: identifai-client
+    ports:
+      - "3001:3001"
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+      WDS_SOCKET_PORT: 3001
+      REACT_APP_PYTHON_API_URL: http://localhost:5001/api/ml
+    depends_on:
+      - api
+    restart: unless-stopped

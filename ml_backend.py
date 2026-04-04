@@ -14,6 +14,7 @@ import soundfile as sf
 import spacy
 import re
 import numpy as np
+from contextlib import nullcontext
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
@@ -30,6 +31,10 @@ import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+TORCH_DTYPE = torch.float16 if DEVICE == "cuda" else torch.float32
+logger.info(f"Using device: {DEVICE}")
 
 # ── Initialize FastAPI ──────────────────────────────────────────
 app = FastAPI(
@@ -89,7 +94,7 @@ if HF_REPO:
     logger.info(f"Loading StableDiffusion from HuggingFace: {HF_REPO}")
     pipe = StableDiffusionPipeline.from_pretrained(
         HF_REPO,
-        torch_dtype=torch.float16,
+        torch_dtype=TORCH_DTYPE,
         safety_checker=None,
         requires_safety_checker=False,
     )
@@ -98,12 +103,13 @@ if HF_REPO:
         use_karras_sigmas=True,
         algorithm_type="dpmsolver++"
     )
-    pipe = pipe.to("cuda")
-    try:
-        pipe.enable_xformers_memory_efficient_attention()
-        logger.info("✅ xformers attention enabled")
-    except Exception as e:
-        logger.warning(f"⚠ xformers not available, using default attention: {e}")
+    pipe = pipe.to(DEVICE)
+    if DEVICE == "cuda":
+        try:
+            pipe.enable_xformers_memory_efficient_attention()
+            logger.info("✅ xformers attention enabled")
+        except Exception as e:
+            logger.warning(f"⚠ xformers not available, using default attention: {e}")
     pipe.enable_attention_slicing()
     logger.info("✅ StableDiffusion loaded from HuggingFace")
 else:
@@ -521,8 +527,9 @@ def generate_face(attributes: dict, seed: int = 42, text_hint: Optional[str] = N
     inference_steps = 45 if chosen_color else 35
     logger.info(f"Generating face with prompt: {prompt[:100]}...")
 
-    generator = torch.Generator("cuda").manual_seed(seed)
-    with torch.autocast("cuda"):
+    generator = torch.Generator(DEVICE).manual_seed(seed)
+    autocast_ctx = torch.autocast("cuda") if DEVICE == "cuda" else nullcontext()
+    with autocast_ctx:
         result = pipe(
             prompt=prompt,
             negative_prompt=negative_prompt,
