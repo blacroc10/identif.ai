@@ -32,3 +32,8 @@ __MACOSX/
 # Node modules
 frontend/server/node_modules/
 frontend/client/node_modules/
+forensic_faces_model/
+*.safetensors
+*.pth
+generated_faces/
+temp_*

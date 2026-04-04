@@ -5,7 +5,7 @@ import { useDropzone } from 'react-dropzone';
 import { useNavigate } from 'react-router-dom';
 import {
   Mic, Upload, FileAudio, Check, X, ChevronRight,
-  Volume2, Loader2, Tag as TagIcon, Wand2, Image, AlertTriangle
+  Volume2, Loader2, Tag as TagIcon, Wand2, AlertTriangle, Square
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { narrationsAPI } from '../services/api';
@@ -39,13 +39,31 @@ const STAGES = [
   { key: 'done',       label: 'Face image ready'      },
 ];
 
+const getRecordingMimeType = () => {
+  if (typeof MediaRecorder === 'undefined') return '';
+  const preferred = [
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/mp4',
+    'audio/ogg;codecs=opus',
+  ];
+  for (const mt of preferred) {
+    if (MediaRecorder.isTypeSupported(mt)) return mt;
+  }
+  return '';
+};
+
 export default function NarrationInput() {
   const { activeCase } = useApp();
   const navigate = useNavigate();
 
   const [mode, setMode]               = useState('text');
   const [text, setText]               = useState('');
-  const [audioFile, setAudio]         = useState(null);
+  const [audioFile, setAudio]        = useState(null);
+  const [recording, setRecording]    = useState(false);
+  const [recorder, setRecorder]      = useState(null);
+  const [recordingTime, setRecTime]  = useState(0);
+  const timerRef                     = React.useRef(null);
 
   // Pipeline state
   const [stage, setStage]             = useState(null); // current pipeline stage key
@@ -60,8 +78,56 @@ export default function NarrationInput() {
 
   // Error
   const [apiError, setApiError]       = useState(null);
+  const startRecording = async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mimeType = getRecordingMimeType();
+    const mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+    const chunks = [];
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunks.push(e.data);
+    };
+
+    mediaRecorder.onstop = () => {
+      const finalType = mediaRecorder.mimeType || mimeType || 'audio/webm';
+      const ext = finalType.includes('ogg') ? 'ogg' : finalType.includes('mp4') ? 'm4a' : 'webm';
+      const blob = new Blob(chunks, { type: finalType });
+      const file = new File([blob], `recording.${ext}`, { type: finalType });
+      setAudio(file);
+      stream.getTracks().forEach(t => t.stop());
+    };
+
+    mediaRecorder.start();
+    setRecorder(mediaRecorder);
+    setRecording(true);
+    setRecTime(0);
+
+    // Start timer
+    timerRef.current = setInterval(() => {
+      setRecTime(t => t + 1);
+    }, 1000);
+
+  } catch (e) {
+    toast.error('Microphone access denied. Please allow microphone permission.');
+  }
+};
+
+const stopRecording = () => {
+  if (recorder) {
+    recorder.stop();
+    setRecorder(null);
+  }
+  setRecording(false);
+  clearInterval(timerRef.current);
+};
+
+const formatTime = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+
+
 
   // ── Dropzone ───────────────────────────────────────────────────
+
   const onDrop = useCallback((accepted) => {
     if (accepted[0]) setAudio(accepted[0]);
   }, []);
@@ -80,8 +146,10 @@ export default function NarrationInput() {
 
   // ── Main submit ────────────────────────────────────────────────
   const submit = async () => {
+    const isAudioMode = mode === 'audio' || mode === 'record';
+
     if (mode === 'text' && !text.trim()) return toast.error('Please enter a description');
-    if (mode === 'audio' && !audioFile)  return toast.error('Please upload an audio file');
+    if (isAudioMode && !audioFile)       return toast.error('Please upload or record an audio file');
 
     setLoading(true);
     setApiError(null);
@@ -112,7 +180,7 @@ export default function NarrationInput() {
       let extractedAttrs = {};
       let rawTranscription = text;
 
-      if (mode === 'audio') {
+      if (isAudioMode) {
         const res = await forensicAPI.transcribe(audioFile);
         rawTranscription = res.data?.transcription || '';
         extractedAttrs   = res.data?.attributes    || {};
@@ -140,7 +208,7 @@ export default function NarrationInput() {
 
       // ── Step 4: Generate face image via Stable Diffusion ─────
       setStage('generate');
-      const imageRes = await forensicAPI.generateFromAttributes(extractedAttrs);
+      const imageRes = await forensicAPI.generateFromAttributes(extractedAttrs, rawTranscription || text);
       setStage('enhance');
 
       // imageRes.data is a Blob (binary PNG)
@@ -218,59 +286,111 @@ export default function NarrationInput() {
         <div className="narration-left">
           <Panel title="Input Method" subtitle="Choose audio upload or text entry">
             <div className="mode-tabs">
-              <button className={`mode-tab ${mode === 'text' ? 'active' : ''}`} onClick={() => setMode('text')}>
-                <Mic size={14} /> Text Entry
-              </button>
-              <button className={`mode-tab ${mode === 'audio' ? 'active' : ''}`} onClick={() => setMode('audio')}>
-                <Volume2 size={14} /> Audio Upload
-              </button>
-            </div>
+  <button className={`mode-tab ${mode === 'text' ? 'active' : ''}`} onClick={() => setMode('text')}>
+    <Mic size={14} /> Text Entry
+  </button>
+  <button className={`mode-tab ${mode === 'record' ? 'active' : ''}`} onClick={() => setMode('record')}>
+    <Mic size={14} /> Record
+  </button>
+  <button className={`mode-tab ${mode === 'audio' ? 'active' : ''}`} onClick={() => setMode('audio')}>
+    <Volume2 size={14} /> Upload File
+  </button>
+</div>
 
             <AnimatePresence mode="wait">
-              {mode === 'text' ? (
-                <motion.div key="text" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                  <div className="narration-text-area">
-                    <label className="field-label mono">Eyewitness Description</label>
-                    <textarea
-                      className="narration-textarea"
-                      value={text}
-                      onChange={e => setText(e.target.value)}
-                      placeholder={PLACEHOLDER}
-                      rows={10}
-                      disabled={loading}
-                    />
-                    <div className="text-meta mono">
-                      {text.length} chars · {text.trim().split(/\s+/).filter(Boolean).length} words
-                    </div>
-                  </div>
-                </motion.div>
-              ) : (
-                <motion.div key="audio" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                  <div {...getRootProps()} className={`dropzone ${isDragActive ? 'active' : ''} ${audioFile ? 'has-file' : ''}`}>
-                    <input {...getInputProps()} />
-                    {audioFile ? (
-                      <div className="dropzone-file">
-                        <FileAudio size={28} />
-                        <span className="dz-filename">{audioFile.name}</span>
-                        <span className="dz-size mono">{(audioFile.size / 1024 / 1024).toFixed(2)} MB</span>
-                        <button className="dz-remove" onClick={e => { e.stopPropagation(); setAudio(null); }}>
-                          <X size={14} /> Remove
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="dropzone-empty">
-                        <Upload size={28} />
-                        <p>Drop audio file here or click to browse</p>
-                        <span className="mono">.wav .mp3 .m4a .ogg — Max 50MB</span>
-                      </div>
-                    )}
-                  </div>
-                  <p className="audio-note mono">
-                    Audio → Whisper STT → spaCy NER → Stable Diffusion → GFPGAN
-                  </p>
-                </motion.div>
-              )}
-            </AnimatePresence>
+  {mode === 'text' ? (
+    <motion.div key="text" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <div className="narration-text-area">
+        <label className="field-label mono">Eyewitness Description</label>
+        <textarea
+          className="narration-textarea"
+          value={text}
+          onChange={e => setText(e.target.value)}
+          placeholder={PLACEHOLDER}
+          rows={10}
+          disabled={loading}
+        />
+        <div className="text-meta mono">
+          {text.length} chars · {text.trim().split(/\s+/).filter(Boolean).length} words
+        </div>
+      </div>
+    </motion.div>
+
+  ) : mode === 'record' ? (
+    <motion.div key="record" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <div className="record-section">
+
+        <div className={`record-btn-wrap ${recording ? 'recording' : ''}`}>
+          <button
+            className={`record-btn ${recording ? 'active' : ''}`}
+            onClick={recording ? stopRecording : startRecording}
+            disabled={loading}
+          >
+            {recording
+              ? <Square size={28} fill="currentColor" />
+              : <Mic size={28} strokeWidth={1.5} />
+            }
+          </button>
+          {recording && <div className="record-ripple" />}
+          {recording && <div className="record-ripple delay" />}
+        </div>
+
+        <div className="record-status">
+          {recording ? (
+            <>
+              <span className="record-dot" />
+              <span className="mono record-label">RECORDING — {formatTime(recordingTime)}</span>
+            </>
+          ) : audioFile && audioFile.name.startsWith('recording.') ? (
+            <span className="mono record-label recorded">✓ RECORDED — {formatTime(recordingTime)}</span>
+          ) : (
+            <span className="mono record-label">PRESS TO START RECORDING</span>
+          )}
+        </div>
+
+        {audioFile && audioFile.name.startsWith('recording.') && !recording && (
+          <div className="record-preview">
+            <FileAudio size={16} />
+            <span className="mono">{audioFile.name} — {(audioFile.size / 1024).toFixed(1)} KB</span>
+            <button className="dz-remove" onClick={() => { setAudio(null); setRecTime(0); }}>
+              <X size={12} /> Clear
+            </button>
+          </div>
+        )}
+
+        <p className="audio-note mono">
+          Speak clearly — Whisper STT will transcribe your narration
+        </p>
+      </div>
+    </motion.div>
+
+  ) : (
+    <motion.div key="audio" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <div {...getRootProps()} className={`dropzone ${isDragActive ? 'active' : ''} ${audioFile ? 'has-file' : ''}`}>
+        <input {...getInputProps()} />
+        {audioFile ? (
+          <div className="dropzone-file">
+            <FileAudio size={28} />
+            <span className="dz-filename">{audioFile.name}</span>
+            <span className="dz-size mono">{(audioFile.size / 1024 / 1024).toFixed(2)} MB</span>
+            <button className="dz-remove" onClick={e => { e.stopPropagation(); setAudio(null); }}>
+              <X size={14} /> Remove
+            </button>
+          </div>
+        ) : (
+          <div className="dropzone-empty">
+            <Upload size={28} />
+            <p>Drop audio file here or click to browse</p>
+            <span className="mono">.wav .mp3 .m4a .ogg — Max 50MB</span>
+          </div>
+        )}
+      </div>
+      <p className="audio-note mono">
+        Audio → Whisper STT → spaCy NER → Stable Diffusion → GFPGAN
+      </p>
+    </motion.div>
+  )}
+</AnimatePresence>
 
             {/* Error box */}
             {apiError && (
@@ -311,7 +431,17 @@ export default function NarrationInput() {
                   <Btn variant="secondary" size="sm" icon={Wand2} onClick={regenerate} disabled={loading}>
                     Regenerate
                   </Btn>
-                  <Btn size="sm" icon={ChevronRight} onClick={() => navigate('/sketch')}>
+                  <Btn
+                    size="sm"
+                    icon={ChevronRight}
+                    onClick={() => navigate('/sketch', {
+                      state: {
+                        generatedImageUrl: faceImageUrl,
+                        generatedAttributes: attrs,
+                        narrationId,
+                      },
+                    })}
+                  >
                     View in Sketch Viewer
                   </Btn>
                 </div>

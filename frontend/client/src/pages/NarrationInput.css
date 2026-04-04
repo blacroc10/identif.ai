@@ -216,3 +216,117 @@
 @media (max-width: 900px) {
   .narration-layout { grid-template-columns: 1fr; }
 }
+.record-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 28px 20px;
+}
+
+.record-btn-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 90px;
+  height: 90px;
+}
+
+.record-btn {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: 2px solid var(--border-active);
+  background: var(--bg-raised);
+  color: var(--cyan);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  position: relative;
+  z-index: 2;
+}
+
+.record-btn:hover {
+  background: var(--cyan-glow);
+  box-shadow: 0 0 24px rgba(0, 200, 255, 0.3);
+  transform: scale(1.05);
+}
+
+.record-btn.active {
+  border-color: var(--red);
+  color: var(--red);
+  background: var(--red-dim);
+  box-shadow: 0 0 24px rgba(255, 59, 92, 0.4);
+}
+
+.record-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Ripple animation */
+.record-ripple {
+  position: absolute;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: 2px solid var(--red);
+  animation: ripple 1.5s ease-out infinite;
+  opacity: 0;
+}
+
+.record-ripple.delay {
+  animation-delay: 0.75s;
+}
+
+@keyframes ripple {
+  0%   { transform: scale(1);   opacity: 0.6; }
+  100% { transform: scale(1.8); opacity: 0;   }
+}
+
+/* Status */
+.record-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.record-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--red);
+  box-shadow: 0 0 8px var(--red);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
+.record-label {
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+}
+
+.record-label.recorded {
+  color: var(--green);
+}
+
+/* Preview */
+.record-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-active);
+  border-radius: var(--radius-md);
+  color: var(--cyan);
+  font-size: 0.72rem;
+}

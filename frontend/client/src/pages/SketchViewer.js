@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useLocation } from 'react-router-dom';
 import {
   PenTool, Check, RefreshCw, Download, ZoomIn, ZoomOut,
   ChevronLeft, ChevronRight, MessageSquare, Tag
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { sketchesAPI } from '../services/api';
+import { forensicAPI } from '../services/pythonApi';
 import { useApi } from '../hooks/useApi';
 import { useApp } from '../context/AppContext';
 import { Panel, Btn, SectionHeader, EmptyState, Textarea } from '../components/UI';
@@ -35,11 +37,13 @@ const MOCK_ATTRS = {
 
 export default function SketchViewer() {
   const { activeCase } = useApp();
+  const location = useLocation();
   const [selected, setSelected] = useState(0);
   const [zoom, setZoom]         = useState(1);
   const [refineText, setRefine] = useState('');
   const [showRefine, setShowRef] = useState(false);
   const [submitting, setSub]    = useState(false);
+  const [localSketches, setLocalSketches] = useState([]);
 
   const { data: sketches, setData } = useApi(
     () => sketchesAPI.getAll({ case_id: activeCase?.id }),
@@ -47,10 +51,48 @@ export default function SketchViewer() {
     { initialData: MOCK_SKETCHES }
   );
 
-  const current = sketches?.[selected];
+  const generatedImageUrl = location.state?.generatedImageUrl || null;
+  const generatedAttributes = location.state?.generatedAttributes || null;
+
+  const sketchesWithGenerated = useMemo(() => {
+    const merged = [...(localSketches || []), ...(sketches || [])];
+    const byId = new Map();
+    merged.forEach(sk => {
+      if (sk?.id && !byId.has(sk.id)) byId.set(sk.id, sk);
+    });
+    return Array.from(byId.values());
+  }, [localSketches, sketches]);
+
+  useEffect(() => {
+    if (!generatedImageUrl) return;
+    setLocalSketches(prev => {
+      const exists = prev.some(sk => sk.image_path === generatedImageUrl);
+      if (exists) return prev;
+      return [
+        {
+          id: 'generated-latest',
+          version: Math.max(prev[0]?.version || 0, sketches?.[0]?.version || 0) + 1,
+          approved: 0,
+          created_at: new Date().toISOString(),
+          refinement_notes: 'Generated from narration',
+          image_path: generatedImageUrl,
+          attributes: generatedAttributes || MOCK_ATTRS,
+        },
+        ...prev,
+      ];
+    });
+  }, [generatedAttributes, generatedImageUrl, sketches]);
+
+  useEffect(() => {
+    if (generatedImageUrl) {
+      setSelected(0);
+    }
+  }, [generatedImageUrl]);
+
+  const current = sketchesWithGenerated?.[selected];
 
   const approve = async () => {
-    if (!current?.id || current.id.startsWith('sk')) {
+    if (!current?.id || current.id.startsWith('sk') || current.id.startsWith('generated-') || current.id.startsWith('local-')) {
       toast.success('Sketch approved (demo)');
       return;
     }
@@ -65,14 +107,47 @@ export default function SketchViewer() {
 
   const submitRefinement = async () => {
     if (!refineText.trim()) return toast.error('Enter refinement instructions');
-    if (!current?.id || current.id.startsWith('sk')) {
-      toast.success(`Refinement submitted (demo): "${refineText}"`);
-      setRefine('');
-      setShowRef(false);
-      return;
-    }
+
+    const isLocalSketch = !current?.id || current.id.startsWith('sk') || current.id.startsWith('generated-') || current.id.startsWith('local-');
+
     setSub(true);
     try {
+      if (isLocalSketch) {
+        const baseAttrs = current?.attributes || generatedAttributes || MOCK_ATTRS;
+
+        const extractionRes = await forensicAPI.attributesFromText(refineText);
+        const extracted = extractionRes?.data?.attributes || {};
+
+        const mergedAttrs = { ...baseAttrs };
+        Object.entries(extracted).forEach(([k, v]) => {
+          if (v == null) return;
+          const val = String(v).trim().toLowerCase();
+          if (!val || val === 'none' || val === 'not detected') return;
+          mergedAttrs[k] = v;
+        });
+
+        const imageRes = await forensicAPI.generateFromAttributes(mergedAttrs, refineText);
+        const imageUrl = URL.createObjectURL(imageRes.data);
+
+        const latestVersion = sketchesWithGenerated?.[0]?.version || 0;
+        const newSketch = {
+          id: `local-${Date.now()}`,
+          version: latestVersion + 1,
+          approved: 0,
+          created_at: new Date().toISOString(),
+          refinement_notes: refineText,
+          image_path: imageUrl,
+          attributes: mergedAttrs,
+        };
+
+        setLocalSketches(prev => [newSketch, ...prev]);
+        setSelected(0);
+        setRefine('');
+        setShowRef(false);
+        toast.success('Refinement applied — new sketch version generated');
+        return;
+      }
+
       const res = await sketchesAPI.refine(current.id, { refinement_notes: refineText });
       const newSketch = res?.data || res;
       setData(prev => [newSketch, ...prev]);
@@ -103,8 +178,8 @@ export default function SketchViewer() {
       <div className="sketch-layout">
         {/* Sketch list */}
         <div className="sketch-sidebar-list">
-          <Panel title="Versions" subtitle={`${sketches?.length || 0} iterations`} noPad>
-            {sketches?.map((sk, i) => (
+          <Panel title="Versions" subtitle={`${sketchesWithGenerated?.length || 0} iterations`} noPad>
+            {sketchesWithGenerated?.map((sk, i) => (
               <motion.div
                 key={sk.id}
                 className={`sketch-thumb ${i === selected ? 'active' : ''}`}
@@ -129,7 +204,7 @@ export default function SketchViewer() {
                 </div>
               </motion.div>
             ))}
-            {(!sketches || sketches.length === 0) && (
+            {(!sketchesWithGenerated || sketchesWithGenerated.length === 0) && (
               <EmptyState icon={PenTool} title="No sketches" message="Submit a narration to generate the first composite." />
             )}
           </Panel>
@@ -197,13 +272,13 @@ export default function SketchViewer() {
           {current && (
             <div className="sketch-actions-row">
               <Btn variant="secondary" size="sm" icon={ChevronLeft} onClick={() => setSelected(s => Math.max(0, s - 1))} disabled={selected === 0}>Prev</Btn>
-              <Btn variant="secondary" size="sm" icon={ChevronRight} onClick={() => setSelected(s => Math.min((sketches?.length || 1) - 1, s + 1))} disabled={selected >= (sketches?.length || 1) - 1}>Next</Btn>
+              <Btn variant="secondary" size="sm" icon={ChevronRight} onClick={() => setSelected(s => Math.min((sketchesWithGenerated?.length || 1) - 1, s + 1))} disabled={selected >= (sketchesWithGenerated?.length || 1) - 1}>Next</Btn>
               <Btn variant="secondary" size="sm" icon={MessageSquare} onClick={() => setShowRef(!showRefine)}>Refine</Btn>
               <Btn variant="secondary" size="sm" icon={Download} onClick={() => toast('Export will trigger download in production')}>Export PNG</Btn>
-              {!current.approved && (
+              {!current?.approved && (
                 <Btn size="sm" icon={Check} variant="success" onClick={approve}>Approve &amp; Proceed to 3D</Btn>
               )}
-              {current.approved === 1 && (
+              {current?.approved === 1 && (
                 <span className="approved-label mono"><Check size={12} /> APPROVED</span>
               )}
             </div>
@@ -239,7 +314,12 @@ export default function SketchViewer() {
         <div className="sketch-attrs-panel">
           <Panel title="Active Attributes" subtitle="Current face vector">
             <div className="sketch-attr-list">
-              {Object.entries(MOCK_ATTRS).map(([k, v]) => (
+              {Object.entries((current?.attributes && Object.keys(current.attributes).length > 0)
+                ? current.attributes
+                : ((generatedAttributes && Object.keys(generatedAttributes).length > 0)
+                  ? generatedAttributes
+                  : MOCK_ATTRS)
+              ).map(([k, v]) => (
                 <div key={k} className="sketch-attr-row">
                   <span className="mono sketch-attr-key">{k.replace(/_/g, ' ')}</span>
                   <span className="sketch-attr-val">{v}</span>
@@ -250,7 +330,7 @@ export default function SketchViewer() {
 
           <Panel title="Version History" subtitle="Iteration audit trail" className="mt-12">
             <div className="version-trail">
-              {(sketches || []).map((sk, i) => (
+              {(sketchesWithGenerated || []).map((sk, i) => (
                 <div key={sk.id} className={`version-item ${i === selected ? 'active' : ''}`}>
                   <div className="version-dot" />
                   <div className="version-info">

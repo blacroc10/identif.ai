@@ -27,3 +27,9 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+*.safetensors
+.pth
+forensic_faces_model/
+generated_faces/
+temp_

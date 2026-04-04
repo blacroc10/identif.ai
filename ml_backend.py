@@ -152,6 +152,7 @@ ATTRIBUTE_KEYS = [
     "cheekbones",
     "eye_size",
     "eye_shape",
+    "eye_color",
     "eye_spacing",
     "eye_tilt",
     "nose_length",
@@ -175,7 +176,6 @@ ATTRIBUTE_KEYS = [
     "facial_hair",
     "beard_style",
     "beard_density",
-    "eye_color",
     "sideburns",
     "lip_color",
     "skin_texture",
@@ -199,7 +199,8 @@ ATTRIBUTE_KEYWORDS = {
     "gender": ["a male face", "a female face", "man", "woman"],
     "approx_age": [
         "a child face", "a teenage face", "a young adult face",
-        "a middle aged face", "an elderly face"
+        "a middle aged face", "an elderly face",
+        "young", "child", "teenager", "adult", "middle aged", "elderly"
     ],
     "ethnicity_complexion": [
         "a light skin tone face", "a medium skin tone face",
@@ -255,24 +256,39 @@ ATTRIBUTE_KEYWORDS = {
     "facial_hair": ["a clean shaven face", "a face with stubble", "a face with a mustache", "a face with a beard", "none"],
     "beard_style": ["a face with a goatee beard", "a face with a full beard", "none"],
     "beard_density": ["a face with a dense beard", "a face with a sparse beard", "a face with a patchy beard", "none"],
-    "eye_color": ["brown eyes", "blue eyes", "green eyes", "hazel eyes", "dark eyes", "black eyes", "grey eyes"],
+    "eye_color": [
+        "brown eyes", "brown eye",
+        "blue eyes", "blue eye",
+        "green eyes", "green eye",
+        "hazel eyes", "hazel eye",
+        "dark eyes", "dark eye",
+        "black eyes", "black eye",
+        "grey eyes", "grey eye",
+        "gray eyes", "gray eye",
+    ],
     "sideburns": ["a face with sideburns", "none"],
     "lip_color": ["a face with pale lips", "a face with pink lips", "a face with dark lips"],
     "skin_texture": ["a face with smooth skin", "a face with rough skin", "a face with visible pores", "a face with acne scars"],
     "wrinkles": ["visible", "none","has wrinkles","no wrinkles","wrinkles on the forehead","wrinkles around the eyes","wrinkles around the mouth"],
     "freckles": ["a face with freckles", "a face without freckles"],
-    "moles": ["a face with moles", "a face without moles"],
+    "moles": [
+        "a face with moles", "a face without moles",
+        "mole", "moles", "beauty mark",
+        "a mole on the left cheek", "a mole on the right cheek",
+        "mole on left cheek", "mole on right cheek",
+        "a mole on the nose", "a mole on the forehead",
+    ],
     "birthmarks": ["a face with birthmarks", "a face without birthmarks"," a birthmark on the face","birthmark on the left cheek","birthmark on the right cheek","birthmark on the forehead","birthmark on the nose"],
     "allow_beard": ["True", "False","has beard","no beard","Thick beard","Sparse beard","Patchy beard"],
-    "allow_wrinkles": ["True", "False","has wrinkles","no wrinkles","visible wrinkles","smooth skin"],
+    "allow_wrinkles": ["True", "False","has wrinkles","no wrinkles","visible wrinkles","smooth skin","wrinkles"],
     "allow_parting": ["True", "False"],
     "scars": ["yes", "no","has scars","no scars","a scar on the face","a scar on the left cheek","a scar on the right cheek","a scar on the forehead","a scar on the nose"],
     "tattoos": ["yes", "no","has tattoos","no tattoos","a tattoo on the face","a tattoo on the left cheek","a tattoo on the right cheek","a tattoo on the forehead","a tattoo on the nose"],
-    "facial_injury": ["yes", "no","has facial injury","no facial injury","a facial injury on the left cheek","a facial injury on the right cheek","a facial injury on the forehead","a facial injury on the nose"],
-    "lazy_eye": ["yes", "no","has lazy eye","no lazy eye","a lazy eye on the left","a lazy eye on the right"],
-    "crooked_nose": ["yes", "no","has a crooked nose","no crooked nose","a crooked nose on the left","a crooked nose on the right"],
-    "missing_tooth": ["yes", "no","has a missing tooth","no missing tooth","a missing tooth on the upper left","a missing tooth on the upper right","a missing tooth on the lower left","a missing tooth on the lower right"],
-    "piercings": ["yes", "no","has piercings","no piercings","a piercing on the left ear","a piercing on the right ear","a piercing on the nose","a piercing on the eyebrow"],
+    "facial_injury": ["yes", "no"," facial injury","no facial injury","a facial injury on the left cheek","a facial injury on the right cheek","a facial injury on the forehead","a facial injury on the nose"],
+    "lazy_eye": ["yes", "no"," lazy eye","no lazy eye","a lazy eye on the left","a lazy eye on the right"],
+    "crooked_nose": ["yes", "no","crooked nose","no crooked nose","a crooked nose on the left","a crooked nose on the right"],
+    "missing_tooth": ["yes", "no"," missing tooth","no missing tooth","a missing tooth on the upper left","a missing tooth on the upper right","a missing tooth on the lower left","a missing tooth on the lower right"],
+    "piercings": ["yes", "no"," piercings","no piercings","a piercing on the left ear","a piercing on the right ear","a piercing on the nose","a piercing on the eyebrow"],
 }
 
 def preprocess_audio(audio_path: str) -> str:
@@ -310,14 +326,20 @@ def extract_attributes(text: str) -> dict:
     safe_text = text or ""
     cleaned = clean_text(safe_text)
     normalized = normalize_text_for_matching(cleaned)
+    normalized_padded = f" {normalized} "
 
     attributes = {key: None for key in ATTRIBUTE_KEYS}
 
     # Phrase-first matching
     for attr, values in ATTRIBUTE_KEYWORDS.items():
-        for phrase in values:
+        sorted_values = sorted(
+            values,
+            key=lambda p: len(normalize_text_for_matching(p)),
+            reverse=True,
+        )
+        for phrase in sorted_values:
             norm_phrase = normalize_text_for_matching(phrase)
-            if norm_phrase and norm_phrase in normalized:
+            if norm_phrase and f" {norm_phrase} " in normalized_padded:
                 attributes[attr] = phrase
                 break
 
@@ -331,21 +353,100 @@ def extract_attributes(text: str) -> dict:
     for attr, values in ATTRIBUTE_KEYWORDS.items():
         if attributes[attr] is not None:
             continue
-        for phrase in values:
+        sorted_values = sorted(
+            values,
+            key=lambda p: len(normalize_text_for_matching(p)),
+            reverse=True,
+        )
+        for phrase in sorted_values:
             norm_phrase = normalize_text_for_matching(phrase)
             phrase_tokens = [t for t in norm_phrase.split() if t and t not in stop_tokens]
             if phrase_tokens and all(tok in token_set for tok in phrase_tokens):
                 attributes[attr] = phrase
                 break
 
+    # Eye color fallback for common narration patterns like:
+    # "blue eyes", "eye color is blue", "eyes are green", "left eye blue"
+    if attributes.get("eye_color") is None:
+        eye_match = re.search(
+            r"\b(?:"
+            r"eye\s*color\s*(?:is|:)?\s*|"
+            r"eyes?\s*(?:are|is)?\s*|"
+            r"(?:left|right)\s+eye\s*(?:is|:)?\s*"
+            r")(brown|blue|green|hazel|black|grey|gray|dark)\b",
+            normalized,
+        )
+        if eye_match:
+            color = eye_match.group(1)
+            if color == "gray":
+                color = "grey"
+            attributes["eye_color"] = f"{color} eyes"
+
+    # Mole fallback for common narration patterns.
+    if attributes.get("moles") is None:
+        if re.search(r"\b(?:no|without|absence\s+of)\s+(?:a\s+)?(?:mole|moles|beauty\s*mark)\b", normalized):
+            attributes["moles"] = "a face without moles"
+        elif re.search(r"\bmole\s+on\s+(?:the\s+)?left\s+cheek\b", normalized):
+            attributes["moles"] = "a mole on the left cheek"
+        elif re.search(r"\bmole\s+on\s+(?:the\s+)?right\s+cheek\b", normalized):
+            attributes["moles"] = "a mole on the right cheek"
+        elif re.search(r"\bmole\s+on\s+(?:the\s+)?nose\b", normalized):
+            attributes["moles"] = "a mole on the nose"
+        elif re.search(r"\bmole\s+on\s+(?:the\s+)?forehead\b", normalized):
+            attributes["moles"] = "a mole on the forehead"
+        elif re.search(r"\b(?:has|with|having|shows?)?\s*(?:a\s+)?(?:mole|moles|beauty\s*mark)\b", normalized):
+            attributes["moles"] = "a face with moles"
+
+    # Piercing fallback with side-awareness.
+    if attributes.get("piercings") is None:
+        if re.search(r"\b(?:no|without)\s+piercings?\b", normalized):
+            attributes["piercings"] = "no"
+        elif re.search(r"\b(?:left\s+ear\s+piercing|piercing\s+on\s+the\s+left\s+ear|pierced\s+left\s+ear)\b", normalized):
+            attributes["piercings"] = "a piercing on the left ear"
+        elif re.search(r"\b(?:right\s+ear\s+piercing|piercing\s+on\s+the\s+right\s+ear|pierced\s+right\s+ear)\b", normalized):
+            attributes["piercings"] = "a piercing on the right ear"
+        elif re.search(r"\b(?:piercing|piercings|pierced)\b", normalized):
+            attributes["piercings"] = "yes"
+
+    # Numeric age fallback (e.g., "29-year-old", "45 years old").
+    if attributes.get("approx_age") is None:
+        age_match = re.search(r"\b([1-9][0-9]?)\s*(?:year\s*old|years\s*old|yo)\b", normalized)
+        if age_match:
+            age = int(age_match.group(1))
+            if age <= 12:
+                attributes["approx_age"] = "a child face"
+            elif age <= 19:
+                attributes["approx_age"] = "a teenage face"
+            elif age <= 35:
+                attributes["approx_age"] = "a young adult face"
+            elif age <= 55:
+                attributes["approx_age"] = "a middle aged face"
+            else:
+                attributes["approx_age"] = "an elderly face"
+
     return attributes
 
-def build_prompt(attributes: dict) -> str:
+def build_prompt(attributes: dict, text_hint: Optional[str] = None) -> str:
     """Build Stable Diffusion prompt from attributes."""
+
+    def extract_eye_color(value: Optional[str]) -> Optional[str]:
+        if not value:
+            return None
+        norm = normalize_text_for_matching(str(value))
+        for c in ("blue", "green", "brown", "hazel", "black", "grey", "gray", "dark"):
+            if re.search(rf"\b{c}\b", norm):
+                return "grey" if c == "gray" else c
+        return None
+
     parts = []
     gender = attributes.get("gender", "person")
     age = attributes.get("approx_age", "adult")
     parts.append(f"RAW photo, portrait of a {age} {gender}")
+
+    # Keep raw narration in the prompt so generation still works if some
+    # attributes are missed by the extractor.
+    if text_hint and text_hint.strip():
+        parts.append(text_hint.strip())
 
     for key in ATTRIBUTE_KEYS:
         if key in {"gender", "approx_age"}:
@@ -357,6 +458,21 @@ def build_prompt(attributes: dict) -> str:
             continue
         parts.append(str(value))
 
+    # Reduce common symmetry artifact: unilateral ear piercing becoming bilateral.
+    piercing_value = str(attributes.get("piercings") or "").lower()
+    if "left ear" in piercing_value:
+        parts.append("single piercing on left ear only, right ear has no piercing")
+    elif "right ear" in piercing_value:
+        parts.append("single piercing on right ear only, left ear has no piercing")
+
+    # Eye color is frequently drifted by SD. Re-state it with stronger wording.
+    eye_color = extract_eye_color(attributes.get("eye_color"))
+    if eye_color:
+        parts.append(
+            f"((( {eye_color} eyes ))), (( {eye_color} irises )), "
+            f"unmistakably {eye_color} eye color, clearly visible irises"
+        )
+
     parts.append(
         "photorealistic, hyperdetailed face, DSLR photo, "
         "85mm portrait lens, professional studio lighting, "
@@ -367,22 +483,52 @@ def build_prompt(attributes: dict) -> str:
 
     return ", ".join(p for p in parts if p)
 
-def generate_face(attributes: dict, seed: int = 42) -> Image.Image:
+def generate_face(attributes: dict, seed: int = 42, text_hint: Optional[str] = None) -> Image.Image:
     """Generate face using StableDiffusion from HuggingFace."""
     if not pipe:
         raise RuntimeError("StableDiffusion model not loaded")
 
-    prompt = build_prompt(attributes)
+    prompt = build_prompt(attributes, text_hint=text_hint)
+    negative_prompt = NEGATIVE_PROMPT
+
+    piercing_value = str(attributes.get("piercings") or "").lower()
+    if "left ear" in piercing_value:
+        negative_prompt += ", piercing on right ear, earrings on both ears, bilateral ear piercings, symmetric earrings"
+    elif "right ear" in piercing_value:
+        negative_prompt += ", piercing on left ear, earrings on both ears, bilateral ear piercings, symmetric earrings"
+
+    eye_value = normalize_text_for_matching(str(attributes.get("eye_color") or ""))
+    color_map = {
+        "blue": ["green eyes", "brown eyes", "hazel eyes", "black eyes", "grey eyes"],
+        "green": ["blue eyes", "brown eyes", "hazel eyes", "black eyes", "grey eyes"],
+        "brown": ["blue eyes", "green eyes", "hazel eyes", "black eyes", "grey eyes"],
+        "hazel": ["blue eyes", "green eyes", "brown eyes", "black eyes", "grey eyes"],
+        "black": ["blue eyes", "green eyes", "brown eyes", "hazel eyes", "grey eyes"],
+        "grey": ["blue eyes", "green eyes", "brown eyes", "hazel eyes", "black eyes"],
+    }
+    chosen_color = None
+    for c in color_map:
+        if re.search(rf"\b{c}\b", eye_value):
+            chosen_color = c
+            break
+    if chosen_color:
+        conflicting = color_map[chosen_color]
+        conflicting_iris = [f"{c.split()[0]} irises" if " " in c else c.replace(" eyes", " irises") for c in conflicting]
+        negative_prompt += ", " + ", ".join(conflicting + conflicting_iris)
+
+    # Use stricter sampling when eye color is specified to reduce drift.
+    guidance_scale = 9.0 if chosen_color else 7.5
+    inference_steps = 45 if chosen_color else 35
     logger.info(f"Generating face with prompt: {prompt[:100]}...")
 
     generator = torch.Generator("cuda").manual_seed(seed)
     with torch.autocast("cuda"):
         result = pipe(
             prompt=prompt,
-            negative_prompt=NEGATIVE_PROMPT,
+            negative_prompt=negative_prompt,
             generator=generator,
-            num_inference_steps=35,
-            guidance_scale=7.5,
+            num_inference_steps=inference_steps,
+            guidance_scale=guidance_scale,
             height=512,
             width=512,
         )
@@ -466,7 +612,7 @@ async def generate_from_audio(audio: UploadFile = File(...)):
         if not pipe:
             raise HTTPException(status_code=503, detail="StableDiffusion model not loaded")
 
-        image = generate_face(attributes)
+        image = generate_face(attributes, text_hint=transcription)
 
         # Save image to bytes
         img_bytes = io.BytesIO()
@@ -501,7 +647,7 @@ async def generate_from_text(payload: TextInput):
     """
     try:
         attributes = extract_attributes(payload.text)
-        image = generate_face(attributes, seed=payload.seed)
+        image = generate_face(attributes, seed=payload.seed, text_hint=payload.text)
 
         img_bytes = io.BytesIO()
         image.save(img_bytes, format="PNG")

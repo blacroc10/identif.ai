@@ -31,7 +31,8 @@ export const forensicAPI = {
   // Step 1a — Upload audio → transcription + attributes JSON
   transcribe: (audioBlob) => {
     const fd = new FormData();
-    fd.append('audio', audioBlob, 'narration.wav');
+    const fileName = audioBlob?.name || `narration.${(audioBlob?.type || '').includes('ogg') ? 'ogg' : (audioBlob?.type || '').includes('mp4') ? 'm4a' : 'webm'}`;
+    fd.append('audio', audioBlob, fileName);
     return pythonApi.post('/generate-from-audio', fd, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
@@ -41,16 +42,20 @@ export const forensicAPI = {
   attributesFromText: (text) =>
     pythonApi.post('/extract-attributes', { text }),
 
-  // Step 2 — Attributes JSON → face image PNG blob
-  generateFromAttributes: (attrs) =>
-    pythonApi.post('/generate-from-text', { text: Object.values(attrs || {}).join(', ') }, {
+  // Step 2 — Attributes JSON (+ optional refinement text) → face image PNG blob
+  generateFromAttributes: (attrs, textHint = '') => {
+    const attrText = Object.values(attrs || {}).filter(Boolean).join(', ');
+    const mergedText = [attrText, textHint].filter(Boolean).join(', ');
+    return pythonApi.post('/generate-from-text', { text: mergedText }, {
       responseType: 'blob', // CRITICAL — response is binary image
-    }),
+    });
+  },
 
   // Full pipeline in one shot — audio → face image PNG blob
   generate: (audioBlob) => {
     const fd = new FormData();
-    fd.append('audio', audioBlob, 'narration.wav');
+    const fileName = audioBlob?.name || `narration.${(audioBlob?.type || '').includes('ogg') ? 'ogg' : (audioBlob?.type || '').includes('mp4') ? 'm4a' : 'webm'}`;
+    fd.append('audio', audioBlob, fileName);
     return pythonApi.post('/generate-from-audio', fd, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
