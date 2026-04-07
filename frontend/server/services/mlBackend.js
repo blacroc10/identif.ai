@@ -8,7 +8,14 @@ const FormData = require('form-data');
 const fs = require('fs');
 const logger = console;
 
-const ML_BACKEND_URL = process.env.ML_BACKEND_URL || 'http://localhost:8000';
+const normalizeBackendUrl = (raw) => {
+  const value = (raw || '').trim();
+  if (!value) return 'http://localhost:8000';
+  if (/^https?:\/\//i.test(value)) return value;
+  return `http://${value}`;
+};
+
+const ML_BACKEND_URL = normalizeBackendUrl(process.env.ML_BACKEND_URL);
 const TIMEOUT = 120000; // 2 minutes for generation
 
 /**

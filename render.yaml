@@ -48,7 +48,7 @@ services:
         fromService:
           type: web
           name: identifai-ml
-          property: url
+          property: hostport
 
   - type: web
     name: identifai-client
@@ -70,4 +70,4 @@ services:
         fromService:
           type: web
           name: identifai-api
-          property: url
+          property: host

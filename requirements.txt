@@ -1,9 +1,8 @@
 setuptools==68.2.2
 numpy<2
 
-torch==2.1.2+cu118 --index-url https://download.pytorch.org/whl/cu118
-torchvision==0.16.2+cu118 --index-url https://download.pytorch.org/whl/cu118
-xformers==0.0.23.post1
+torch==2.1.2
+torchvision==0.16.2
 
 diffusers==0.21.4
 transformers==4.38.2

@@ -4,7 +4,9 @@ import axios from 'axios';
 // Priority: env variable → same host as frontend (works on any machine)
 const getBaseURL = () => {
   if (process.env.REACT_APP_API_URL) {
-    const normalized = process.env.REACT_APP_API_URL.replace(/\/$/, '');
+    const raw = process.env.REACT_APP_API_URL.replace(/\/$/, '');
+    const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+    const normalized = withProtocol.replace(/\/$/, '');
     return normalized.endsWith('/api') ? normalized : `${normalized}/api`;
   }
   const { protocol, hostname } = window.location;
