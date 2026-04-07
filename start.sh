@@ -91,8 +91,25 @@ PYTHONNOUSERSITE=1 "$ML_ENV/bin/python" ml_backend.py > /tmp/ml_backend.log 2>&1
 ML_PID=$!
 echo "   ✅ ML Backend PID: $ML_PID (port 8000)"
 
-# Give ML backend time to start
-sleep 5
+# Wait for ML backend to be actually ready (model load can take minutes)
+echo "   Waiting for ML Backend health check..."
+MAX_WAIT_SECONDS=900
+WAITED_SECONDS=0
+until curl -fsS "http://127.0.0.1:8000/health" >/dev/null 2>&1; do
+    if ! kill -0 "$ML_PID" >/dev/null 2>&1; then
+        echo "   ❌ ML Backend exited during startup. Check /tmp/ml_backend.log"
+        exit 1
+    fi
+
+    sleep 5
+    WAITED_SECONDS=$((WAITED_SECONDS + 5))
+
+    if [ "$WAITED_SECONDS" -ge "$MAX_WAIT_SECONDS" ]; then
+        echo "   ❌ Timed out waiting for ML Backend (>${MAX_WAIT_SECONDS}s). Check /tmp/ml_backend.log"
+        exit 1
+    fi
+done
+echo "   ✅ ML Backend is healthy"
 
 # Start Frontend in background
 echo ""

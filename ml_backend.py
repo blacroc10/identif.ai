@@ -32,10 +32,6 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-TORCH_DTYPE = torch.float16 if DEVICE == "cuda" else torch.float32
-logger.info(f"Using device: {DEVICE}")
-
 # ── Initialize FastAPI ──────────────────────────────────────────
 app = FastAPI(
     title="Identif.ai ML Backend",
@@ -61,6 +57,18 @@ AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID", "")
 AWS_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "")
 AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
 
+FORCE_CPU = os.getenv("FORCE_CPU", "false").strip().lower() in {"1", "true", "yes", "y"}
+DEVICE = "cpu" if FORCE_CPU else ("cuda" if torch.cuda.is_available() else "cpu")
+TORCH_DTYPE = torch.float16 if DEVICE == "cuda" else torch.float32
+CPU_THREADS = int(os.getenv("CPU_THREADS", "0") or 0)
+WHISPER_MODEL_NAME = os.getenv("WHISPER_MODEL", "medium" if DEVICE == "cuda" else "base")
+
+if DEVICE == "cpu":
+    torch.set_num_threads(CPU_THREADS if CPU_THREADS > 0 else max(1, os.cpu_count() or 4))
+
+logger.info(f"Using device: {DEVICE}")
+logger.info(f"Whisper model: {WHISPER_MODEL_NAME}")
+
 if HF_TOKEN:
     login(token=HF_TOKEN)
 
@@ -82,7 +90,7 @@ except Exception as e:
 logger.info("Loading ML models...")
 
 # Whisper ASR
-whisper_model = whisper.load_model("medium")
+whisper_model = whisper.load_model(WHISPER_MODEL_NAME)
 logger.info("✅ Whisper loaded")
 
 # spaCy NLP
@@ -111,6 +119,8 @@ if HF_REPO:
         except Exception as e:
             logger.warning(f"⚠ xformers not available, using default attention: {e}")
     pipe.enable_attention_slicing()
+    if DEVICE == "cpu":
+        pipe.enable_vae_slicing()
     logger.info("✅ StableDiffusion loaded from HuggingFace")
 else:
     logger.warning("⚠ HF_REPO not set — face generation will not work")
@@ -445,8 +455,8 @@ def build_prompt(attributes: dict, text_hint: Optional[str] = None) -> str:
         return None
 
     parts = []
-    gender = attributes.get("gender", "person")
-    age = attributes.get("approx_age", "adult")
+    gender = attributes.get("gender") or "person"
+    age = attributes.get("approx_age") or "adult"
     parts.append(f"RAW photo, portrait of a {age} {gender}")
 
     # Keep raw narration in the prompt so generation still works if some
@@ -522,23 +532,43 @@ def generate_face(attributes: dict, seed: int = 42, text_hint: Optional[str] = N
         conflicting_iris = [f"{c.split()[0]} irises" if " " in c else c.replace(" eyes", " irises") for c in conflicting]
         negative_prompt += ", " + ", ".join(conflicting + conflicting_iris)
 
-    # Use stricter sampling when eye color is specified to reduce drift.
-    guidance_scale = 9.0 if chosen_color else 7.5
-    inference_steps = 45 if chosen_color else 35
+    # Use lighter defaults on CPU so generation is practical on normal systems.
+    if DEVICE == "cpu":
+        guidance_scale = 7.0 if chosen_color else 6.5
+        inference_steps = 24 if chosen_color else 18
+    else:
+        guidance_scale = 9.0 if chosen_color else 7.5
+        inference_steps = 45 if chosen_color else 35
+
+    max_prompt_chars = int(os.getenv("MAX_PROMPT_CHARS", "900") or 900)
+    if len(prompt) > max_prompt_chars:
+        prompt = prompt[:max_prompt_chars]
+
     logger.info(f"Generating face with prompt: {prompt[:100]}...")
 
     generator = torch.Generator(DEVICE).manual_seed(seed)
-    autocast_ctx = torch.autocast("cuda") if DEVICE == "cuda" else nullcontext()
-    with autocast_ctx:
-        result = pipe(
-            prompt=prompt,
-            negative_prompt=negative_prompt,
-            generator=generator,
-            num_inference_steps=inference_steps,
-            guidance_scale=guidance_scale,
-            height=512,
-            width=512,
-        )
+    def run_generation(steps: int, scale: float):
+        autocast_ctx = torch.autocast("cuda") if DEVICE == "cuda" else nullcontext()
+        with autocast_ctx:
+            return pipe(
+                prompt=prompt,
+                negative_prompt=negative_prompt,
+                generator=generator,
+                num_inference_steps=steps,
+                guidance_scale=scale,
+                height=512,
+                width=512,
+            )
+
+    try:
+        result = run_generation(inference_steps, guidance_scale)
+    except RuntimeError as e:
+        if DEVICE == "cuda" and "out of memory" in str(e).lower():
+            logger.warning("CUDA OOM detected, retrying with conservative settings")
+            torch.cuda.empty_cache()
+            result = run_generation(max(18, inference_steps - 15), max(6.0, guidance_scale - 1.5))
+        else:
+            raise
 
     image = result.images[0]
 

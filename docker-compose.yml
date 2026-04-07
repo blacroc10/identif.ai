@@ -10,6 +10,17 @@ services:
       - "8000:8000"
     env_file:
       - .env
+    environment:
+      FORCE_CPU: "1"
+      WHISPER_MODEL: "base"
+      CPU_THREADS: "4"
+      MAX_PROMPT_CHARS: "900"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 20s
+      timeout: 10s
+      retries: 15
+      start_period: 60s
     restart: unless-stopped
 
   api:
@@ -24,7 +35,8 @@ services:
       NODE_ENV: development
       ML_BACKEND_URL: http://ml-backend:8000
     depends_on:
-      - ml-backend
+      ml-backend:
+        condition: service_healthy
     restart: unless-stopped
 
   client:
