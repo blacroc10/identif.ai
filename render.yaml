@@ -1,0 +1,73 @@
+services:
+  - type: web
+    name: identifai-ml
+    env: docker
+    plan: free
+    dockerfilePath: ./docker/ml-backend.Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: HF_TOKEN
+        sync: false
+      - key: HF_REPO
+        sync: false
+      - key: FORCE_CPU
+        value: "1"
+      - key: WHISPER_MODEL
+        value: "base"
+      - key: CPU_THREADS
+        value: "4"
+      - key: MAX_PROMPT_CHARS
+        value: "900"
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_REGION
+        value: us-east-1
+      - key: REPLICATE_API_TOKEN
+        sync: false
+      - key: REPLICATE_MODEL
+        value: black-forest-labs/flux-schnell
+
+  - type: web
+    name: identifai-api
+    env: docker
+    plan: free
+    dockerfilePath: ./frontend/server/Dockerfile
+    dockerContext: ./frontend/server
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "5001"
+      - key: ML_BACKEND_URL
+        fromService:
+          type: web
+          name: identifai-ml
+          property: url
+
+  - type: web
+    name: identifai-client
+    env: docker
+    plan: free
+    dockerfilePath: ./frontend/client/Dockerfile
+    dockerContext: ./frontend/client
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: "3001"
+      - key: CHOKIDAR_USEPOLLING
+        value: "true"
+      - key: WATCHPACK_POLLING
+        value: "true"
+      - key: WDS_SOCKET_PORT
+        value: "443"
+      - key: REACT_APP_API_URL
+        fromService:
+          type: web
+          name: identifai-api
+          property: url

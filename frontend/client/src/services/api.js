@@ -3,7 +3,10 @@ import axios from 'axios';
 // Dynamically resolve the API base URL
 // Priority: env variable → same host as frontend (works on any machine)
 const getBaseURL = () => {
-  if (process.env.REACT_APP_API_URL) return process.env.REACT_APP_API_URL;
+  if (process.env.REACT_APP_API_URL) {
+    const normalized = process.env.REACT_APP_API_URL.replace(/\/$/, '');
+    return normalized.endsWith('/api') ? normalized : `${normalized}/api`;
+  }
   const { protocol, hostname } = window.location;
   return `${protocol}//${hostname}:5001/api`;
 };
