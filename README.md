@@ -85,45 +85,7 @@ This starts:
 
 ---
 
-## API Endpoints
 
-### Cases
-| Method | Endpoint             | Description              |
-|--------|----------------------|--------------------------|
-| GET    | /api/cases           | List all cases           |
-| GET    | /api/cases/:id       | Get case with all data   |
-| POST   | /api/cases           | Create new case          |
-| PATCH  | /api/cases/:id       | Update case              |
-| DELETE | /api/cases/:id       | Delete case              |
-
-### Narrations
-| Method | Endpoint                        | Description                        |
-|--------|---------------------------------|------------------------------------|
-| GET    | /api/narrations                 | List narrations (filter by case)   |
-| POST   | /api/narrations/upload          | Upload .wav/.mp3 audio             |
-| POST   | /api/narrations/text            | Submit text narration directly     |
-| PATCH  | /api/narrations/:id/process     | Store pipeline output (from Python)|
-
-### Sketches
-| Method | Endpoint                        | Description                        |
-|--------|---------------------------------|------------------------------------|
-| GET    | /api/sketches                   | List sketches                      |
-| POST   | /api/sketches/upload            | Upload sketch image (from Python)  |
-| PATCH  | /api/sketches/:id/approve       | Witness approval                   |
-| POST   | /api/sketches/:id/refine        | Submit refinement notes            |
-
-### Meshes
-| Method | Endpoint          | Description                          |
-|--------|-------------------|--------------------------------------|
-| GET    | /api/meshes       | List meshes                          |
-| POST   | /api/meshes/upload| Upload .obj/.ply mesh (from Python)  |
-
-### Dashboard
-| Method | Endpoint               | Description    |
-|--------|------------------------|----------------|
-| GET    | /api/dashboard/stats   | System metrics |
-
----
 
 ## Connecting the Python Pipeline
 
