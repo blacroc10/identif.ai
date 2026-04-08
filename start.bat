@@ -2,7 +2,7 @@
 REM Identif.ai Quick Start Script (Windows)
 REM Starts both ML Backend (FastAPI) and Frontend (Express) servers
 
-set PROJECT_DIR=C:\Users\CL502-30\identif.ai
+set PROJECT_DIR=c:\Users\Shubhankar\identif.ai
 set ML_ENV=%PROJECT_DIR%\ml_env
 
 echo.

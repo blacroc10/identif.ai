@@ -10,7 +10,7 @@ const getBaseURL = () => {
     return normalized.endsWith('/api') ? normalized : `${normalized}/api`;
   }
   const { protocol, hostname } = window.location;
-  return `${protocol}//${hostname}:5001/api`;
+  return `${protocol}//${hostname}:5000/api`;
 };
 
 const api = axios.create({

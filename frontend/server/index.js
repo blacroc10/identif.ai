@@ -35,6 +35,9 @@ app.use('/api/', limiter);
 // Static uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Serve React static files
+app.use(express.static(path.join(__dirname, '../client/public')));
+
 // Routes
 app.use('/api/narrations', narrationRoutes);
 app.use('/api/cases', caseRoutes);
@@ -48,12 +51,21 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', version: '1.0.0', service: 'Identif.ai API' });
 });
 
+// Catch-all route for React routing
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, '../client/public/index.html'));
+});
+
 // Error handler
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(err.status || 500).json({ error: err.message || 'Internal Server Error' });
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`\n🔍 Identif.ai Server running on port ${PORT}\n`);
 });
+
+// Set timeout for long-running ML operations (10 minutes)
+server.timeout = 600000;
+server.keepAliveTimeout = 120000;

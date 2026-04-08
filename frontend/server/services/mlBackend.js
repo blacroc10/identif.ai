@@ -16,7 +16,7 @@ const normalizeBackendUrl = (raw) => {
 };
 
 const ML_BACKEND_URL = normalizeBackendUrl(process.env.ML_BACKEND_URL);
-const TIMEOUT = 120000; // 2 minutes for generation
+const TIMEOUT = 600000; // 10 minutes for generation (CPU processing is slower)
 
 /**
  * Health check — verify backend is running

@@ -2,7 +2,7 @@ import axios from 'axios';
 
 const pythonApi = axios.create({
   baseURL: process.env.REACT_APP_PYTHON_API_URL || '/api/ml',
-  timeout: 120000, // 2 min — SD generation takes time
+  timeout: 900000, // 15 min — CPU-bound ASR/SD generation can take a long time
 });
 
 // Request interceptor

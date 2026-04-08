@@ -49,7 +49,13 @@ app.add_middleware(
 
 # ── Environment Setup ───────────────────────────────────────────
 from dotenv import load_dotenv
-load_dotenv()
+import sys
+
+# Explicitly load .env from the project root
+env_path = Path(__file__).parent / ".env"
+logger.info(f"Loading .env from: {env_path}")
+load_dotenv(dotenv_path=env_path)
+logger.info(f"✅ .env loaded")
 
 HF_REPO = os.getenv("HF_REPO", "")
 HF_TOKEN = os.getenv("HF_TOKEN", "")
@@ -68,9 +74,15 @@ if DEVICE == "cpu":
 
 logger.info(f"Using device: {DEVICE}")
 logger.info(f"Whisper model: {WHISPER_MODEL_NAME}")
+logger.info(f"HF_REPO: {HF_REPO}")
+logger.info(f"HF_TOKEN: {HF_TOKEN[:20]}..." if HF_TOKEN else "HF_TOKEN: (not set)")
 
 if HF_TOKEN:
-    login(token=HF_TOKEN)
+    try:
+        login(token=HF_TOKEN)
+        logger.info("✅ HuggingFace authentication successful")
+    except Exception as e:
+        logger.warning(f"⚠️ HuggingFace login failed: {e}. Proceeding without authentication.")
 
 # ── Initialize AWS Polly ────────────────────────────────────────
 try:
@@ -627,8 +639,8 @@ async def health():
 @app.post("/generate-from-audio")
 async def generate_from_audio(audio: UploadFile = File(...)):
     """
-    Full pipeline: Audio → Whisper → Attributes → StableDiffusion → GFPGAN
-    Returns: JSON with transcription, attributes, and PNG image
+    Audio → Whisper → Attributes
+    Returns transcription and extracted attributes for the frontend pipeline.
     """
     try:
         # Save uploaded audio
@@ -645,30 +657,15 @@ async def generate_from_audio(audio: UploadFile = File(...)):
         attributes = extract_attributes(transcription)
         logger.info(f"Extracted attributes: {attributes}")
 
-        # Generate face
-        if not pipe:
-            raise HTTPException(status_code=503, detail="StableDiffusion model not loaded")
-
-        image = generate_face(attributes, text_hint=transcription)
-
-        # Save image to bytes
-        img_bytes = io.BytesIO()
-        image.save(img_bytes, format="PNG")
-        img_bytes.seek(0)
-
-        # Generate speech from transcription
-        audio_response = synthesize_speech(transcription)
-
         # Cleanup
-        os.remove(audio_path)
-        os.remove(clean_path)
+        for path in (audio_path, clean_path):
+            if path and os.path.exists(path):
+                os.remove(path)
 
         return {
             "success": True,
             "transcription": transcription,
             "attributes": attributes,
-            "image_url": "/generated_face.png",
-            "speech_available": audio_response is not None,
             "timestamp": datetime.now().isoformat(),
         }
 
