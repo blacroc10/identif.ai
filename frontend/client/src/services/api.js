@@ -5,7 +5,8 @@ import axios from 'axios';
 const getBaseURL = () => {
   if (process.env.REACT_APP_API_URL) {
     const raw = process.env.REACT_APP_API_URL.replace(/\/$/, '');
-    const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+    const shouldUseHttp = /^localhost(:\d+)?$/i.test(raw) || /^127(?:\.\d{1,3}){3}(:\d+)?$/.test(raw) || raw.includes(':');
+    const withProtocol = /^https?:\/\//i.test(raw) ? raw : `${shouldUseHttp ? 'http' : 'https'}://${raw}`;
     const normalized = withProtocol.replace(/\/$/, '');
     return normalized.endsWith('/api') ? normalized : `${normalized}/api`;
   }

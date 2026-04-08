@@ -66,6 +66,6 @@ const server = app.listen(PORT, () => {
   console.log(`\n🔍 Identif.ai Server running on port ${PORT}\n`);
 });
 
-// Set timeout for long-running ML operations (10 minutes)
-server.timeout = 600000;
+// Set timeout for long-running ML operations (20 minutes)
+server.timeout = 1200000;
 server.keepAliveTimeout = 120000;
