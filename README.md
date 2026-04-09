@@ -84,6 +84,12 @@ This starts:
 - **React** at `http://localhost:3000`
 - **Express API** at `http://localhost:5000`
 
+### 4. Stop connection
+
+```bash
+taskkill /F /IM node.exe 2>$null
+taskkill /F /IM python.exe 2>$null
+```
 ---
 
 
