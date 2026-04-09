@@ -76,7 +76,8 @@ cp server/.env.example server/.env
 ### 3. Run development servers
 
 ```bash
-npm run dev
+.\start.bat
+npm --prefix .\frontend\client start
 ```
 
 This starts:
