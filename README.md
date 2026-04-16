@@ -169,20 +169,6 @@ meshes      (id, case_id, narration_id, sketch_id, mesh_path, format, render_sta
 
 ---
 
-## Design System
-
-All design tokens are in `client/src/index.css`:
-
-```css
---bg-void, --bg-deep, --bg-panel, --bg-raised   /* Backgrounds */
---cyan, --cyan-bright, --cyan-dim, --cyan-glow   /* Primary accent */
---amber, --green, --red                          /* Status colors */
---font-mono: 'Share Tech Mono'                   /* Code / labels */
---font-display: 'Barlow Condensed'               /* Headings */
---font-body: 'Barlow'                            /* Body text */
-```
-
----
 
 ## Team
 
@@ -191,6 +177,6 @@ All design tokens are in `client/src/index.css`:
 | Aarvee Wadhwa       | ML / NLP Pipeline             |
 | Yashraj Shrivastava | 3D Reconstruction             |
 | Shubhankar Sarangi  | Speech Processing             |
-| Raghav Dhoot        | Face Detection & Embeddings   |
+| Raghav Dhoot        | UI/Frontend
 
 
